@@ -1,0 +1,2 @@
+"""Plat BO skeleton package."""
+
