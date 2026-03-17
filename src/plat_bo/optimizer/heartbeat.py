@@ -4,7 +4,7 @@ import os
 import time
 from pathlib import Path
 
-from .file_io import read_json, write_json
+from ..initialization.file_io import read_json, write_json
 
 
 def write_heartbeat(heartbeat_dir: Path, process_name: str) -> None:

@@ -6,8 +6,8 @@ import math
 from pathlib import Path
 from typing import Any
 
-from .config import project_runtime_config
-from .task_config_store import load_task_config
+from ..initialization.config import project_runtime_config
+from ..initialization.task_config_store import load_task_config
 
 
 def _load_engine_history(project_id: str, task_id: str) -> list[dict[str, Any]]:

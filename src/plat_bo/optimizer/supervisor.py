@@ -6,12 +6,12 @@ import shutil
 import time
 from pathlib import Path
 
-from .config import RuntimeConfig, project_runtime_config
-from .engine import BOEngine
-from .file_io import list_new_json_files, read_json, write_json
+from ..initialization.config import RuntimeConfig, project_runtime_config
+from ..surrogate.engine import BOEngine
+from ..initialization.file_io import list_new_json_files, read_json, write_json
 from .heartbeat import write_heartbeat
-from .models import TrialOutput
-from .task_config_store import load_task_config
+from ..initialization.models import TrialOutput
+from ..initialization.task_config_store import load_task_config
 
 
 def _is_iteration_output(path: Path) -> bool:
@@ -48,6 +48,10 @@ def run_supervisor(config: RuntimeConfig | None = None) -> None:
                 continue
 
             try:
+                objective_vector = payload.get("objective_vector")
+                parsed_objective_vector = None
+                if isinstance(objective_vector, list) and objective_vector:
+                    parsed_objective_vector = [float(v) for v in objective_vector]
                 output = TrialOutput(
                     task_id=str(payload["task_id"]),
                     iteration=int(payload["iteration"]),
@@ -56,6 +60,7 @@ def run_supervisor(config: RuntimeConfig | None = None) -> None:
                     success=bool(payload["success"]),
                     message=str(payload["message"]),
                     cost_seconds=float(payload["cost_seconds"]),
+                    objective_vector=parsed_objective_vector,
                 )
             except (KeyError, TypeError, ValueError):
                 archived = cfg.processed_dir / path.name
@@ -97,6 +102,7 @@ def run_supervisor(config: RuntimeConfig | None = None) -> None:
                     "iteration": output.iteration,
                     "input_parameters": output.parameters,
                     "objective": output.objective,
+                    "objective_vector": output.objective_vector,
                     "success": output.success,
                     "message": output.message,
                     "next_iteration": None if next_trial is None else next_iter,

@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from ..acquisition.strategy_config import resolve_component_config
+
 
 class ValidationError(ValueError):
     pass
@@ -28,13 +30,33 @@ def validate_trial_input(data: dict[str, Any]) -> None:
 
 
 def validate_task_config(data: dict[str, Any]) -> None:
-    required = {"task_id", "problem", "strategy", "bounds", "max_iterations"}
+    required = {"task_id", "problem", "bounds", "max_iterations"}
     missing = required.difference(data.keys())
     if missing:
         raise ValidationError(f"missing task config fields: {sorted(missing)}")
 
     if not isinstance(data["task_id"], str) or not data["task_id"].strip():
         raise ValidationError("task_id must be a non-empty string")
+
+    strategy = data.get("strategy")
+    if strategy is not None and (not isinstance(strategy, str) or not strategy.strip()):
+        raise ValidationError("strategy must be a non-empty string when provided")
+    if strategy is None and data.get("component_config") is None:
+        raise ValidationError("either strategy or component_config must be provided")
+
+    raw_component_config = data.get("component_config")
+    if raw_component_config is not None and not isinstance(raw_component_config, dict):
+        raise ValidationError("component_config must be an object when provided")
+    raw_problem_config = data.get("problem_config")
+    if raw_problem_config is not None and not isinstance(raw_problem_config, dict):
+        raise ValidationError("problem_config must be an object when provided")
+    try:
+        resolve_component_config(
+            None if strategy is None else str(strategy),
+            None if raw_component_config is None else raw_component_config,
+        )
+    except ValueError as exc:
+        raise ValidationError(str(exc))
 
     if not isinstance(data["bounds"], list) or not data["bounds"]:
         raise ValidationError("bounds must be a non-empty list")

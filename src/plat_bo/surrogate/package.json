@@ -1,0 +1,9 @@
+{
+  "name": "plat_bo.surrogate",
+  "version": "0.1.0",
+  "description": "Surrogate modeling module for Plat BO",
+  "dependencies": {
+    "plat_bo.initialization": "0.1.0",
+    "plat_bo.acquisition": "0.1.0"
+  }
+}

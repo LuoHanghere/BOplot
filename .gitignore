@@ -3,4 +3,7 @@ __pycache__/
 .vscode/
 project/
 *.png
-
+runtime/
+SU2/data/
+FL/data/
+ansys_validation/

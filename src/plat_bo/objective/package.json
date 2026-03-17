@@ -1,0 +1,8 @@
+{
+  "name": "plat_bo.objective",
+  "version": "0.1.0",
+  "description": "Objective evaluation module for Plat BO",
+  "dependencies": {
+    "plat_bo.initialization": "0.1.0"
+  }
+}

@@ -8,7 +8,7 @@ import time
 from abc import ABC, abstractmethod
 from pathlib import Path
 
-from .models import TrialInput, TrialOutput
+from ..initialization.models import TrialInput, TrialOutput
 
 
 class Evaluator(ABC):
@@ -53,8 +53,9 @@ class SubprocessEvaluator(Evaluator):
     - output file JSON: {"objective": float, "success": bool, "message": str}
     """
 
-    def __init__(self, module: str) -> None:
+    def __init__(self, module: str, extra_input: dict | None = None) -> None:
         self.module = module
+        self.extra_input = dict(extra_input or {})
 
     def evaluate(self, trial: TrialInput) -> TrialOutput:
         start = time.perf_counter()
@@ -62,8 +63,10 @@ class SubprocessEvaluator(Evaluator):
             tmp = Path(tmpdir)
             input_path = tmp / "input.json"
             output_path = tmp / "output.json"
+            payload = trial.to_dict()
+            payload.update(self.extra_input)
             with input_path.open("w", encoding="utf-8") as f:
-                json.dump(trial.to_dict(), f, ensure_ascii=False, indent=2)
+                json.dump(payload, f, ensure_ascii=False, indent=2)
 
             cmd = [
                 sys.executable,
@@ -86,6 +89,11 @@ class SubprocessEvaluator(Evaluator):
                     success=bool(payload.get("success", True)),
                     message=str(payload.get("message", "ok")),
                     cost_seconds=time.perf_counter() - start,
+                    objective_vector=(
+                        [float(v) for v in payload["objective_vector"]]
+                        if isinstance(payload.get("objective_vector"), list)
+                        else None
+                    ),
                 )
             except Exception as exc:  # noqa: BLE001
                 return TrialOutput(

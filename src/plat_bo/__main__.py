@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from .ui_app import run_ui
+from .optimizer.ui_app import run_ui
 
 
 if __name__ == "__main__":

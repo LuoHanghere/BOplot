@@ -3,10 +3,12 @@ from __future__ import annotations
 import argparse
 
 from .config import RuntimeConfig, project_runtime_config
-from .engine import BOEngine
+from ..acquisition.strategy_config import resolve_component_config
+from ..surrogate.engine import BOEngine
 from .file_io import write_json
 from .models import TaskConfig
 from .task_config_store import save_task_config
+from .validator import validate_task_config
 
 
 def default_task_config(task_id: str = "branin-001") -> TaskConfig:
@@ -25,6 +27,10 @@ def default_task_config(task_id: str = "branin-001") -> TaskConfig:
 def bootstrap_task(config: TaskConfig, runtime_cfg: RuntimeConfig | None = None) -> None:
     cfg = runtime_cfg or RuntimeConfig()
     cfg.ensure_dirs()
+    strategy, component_config = resolve_component_config(config.strategy, config.component_config)
+    config.strategy = strategy
+    config.component_config = component_config
+    validate_task_config(config.to_dict())
     save_task_config(cfg.task_config_dir, config)
     engine = BOEngine(state_dir=cfg.state_dir, task_config=config)
     first = engine.suggest_next(task_id=config.task_id, iteration=0)

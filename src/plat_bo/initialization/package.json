@@ -1,0 +1,6 @@
+{
+  "name": "plat_bo.initialization",
+  "version": "0.1.0",
+  "description": "Initialization module for Plat BO",
+  "dependencies": {}
+}

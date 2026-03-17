@@ -1,2 +1,0 @@
-"""Optimization problem external programs."""
-

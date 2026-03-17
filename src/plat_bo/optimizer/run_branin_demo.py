@@ -1,12 +1,14 @@
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 import time
+from pathlib import Path
 
-from .bootstrap import bootstrap_task, default_task_config
-from .config import project_runtime_config
-from .file_io import read_json
+from ..initialization.bootstrap import bootstrap_task, default_task_config
+from ..initialization.config import project_runtime_config
+from ..initialization.file_io import read_json
 
 
 def run_demo(max_iterations: int = 20, timeout_seconds: int = 120) -> None:
@@ -17,14 +19,16 @@ def run_demo(max_iterations: int = 20, timeout_seconds: int = 120) -> None:
     task_cfg.max_iterations = max_iterations
     bootstrap_task(task_cfg, runtime_cfg=cfg)
 
-    env = dict(**__import__("os").environ)
-    env["PYTHONPATH"] = "src"
+    env = dict(os.environ)
+    src_dir = str(Path(__file__).resolve().parents[2])
+    existing_pythonpath = env.get("PYTHONPATH", "")
+    env["PYTHONPATH"] = src_dir + (os.pathsep + existing_pythonpath if existing_pythonpath else "")
 
     worker = subprocess.Popen(
-        [sys.executable, "-m", "plat_bo.worker", "--project-id", project_id], env=env
+        [sys.executable, "-m", "plat_bo.optimizer.worker", "--project-id", project_id], env=env
     )
     supervisor = subprocess.Popen(
-        [sys.executable, "-m", "plat_bo.supervisor", "--project-id", project_id], env=env
+        [sys.executable, "-m", "plat_bo.optimizer.supervisor", "--project-id", project_id], env=env
     )
     start = time.time()
     state_file = cfg.state_dir / "{}_engine_state.json".format(task_cfg.task_id)

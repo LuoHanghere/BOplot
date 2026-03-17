@@ -6,13 +6,13 @@ import shutil
 import time
 from pathlib import Path
 
-from .config import RuntimeConfig, project_runtime_config
-from .evaluator import Evaluator, MockQuadraticEvaluator, SubprocessEvaluator
-from .file_io import list_new_json_files, read_json, write_json
+from ..initialization.config import RuntimeConfig, project_runtime_config
+from ..objective.evaluator import Evaluator, MockQuadraticEvaluator, SubprocessEvaluator
+from ..initialization.file_io import list_new_json_files, read_json, write_json
 from .heartbeat import write_heartbeat
-from .models import TrialInput
-from .task_config_store import load_task_config
-from .validator import ValidationError, validate_trial_input
+from ..initialization.models import TaskConfig, TrialInput
+from ..initialization.task_config_store import load_task_config
+from ..initialization.validator import ValidationError, validate_trial_input
 
 
 def _output_filename(task_id: str, iteration: int) -> str:
@@ -23,9 +23,12 @@ def _error_filename(src_name: str) -> str:
     return "{}_error.json".format(Path(src_name).stem)
 
 
-def _create_evaluator(problem: str) -> Evaluator:
-    if problem == "branin":
-        return SubprocessEvaluator(module="plat_bo.problems.branin_program")
+def _create_evaluator(task_cfg: TaskConfig) -> Evaluator:
+    if task_cfg.problem == "branin":
+        return SubprocessEvaluator(module="plat_bo.objective.branin_program")
+    if task_cfg.problem == "su2_airfoil_2d":
+        extra = {"problem_config": task_cfg.problem_config or {}}
+        return SubprocessEvaluator(module="plat_bo.objective.su2_airfoil_program", extra_input=extra)
     return MockQuadraticEvaluator()
 
 
@@ -63,7 +66,7 @@ def run_worker(config: RuntimeConfig | None = None) -> None:
                 task_cfg = load_task_config(cfg.task_config_dir, trial.task_id)
                 _validate_against_task_config(trial.parameters, task_cfg.bounds)
                 if trial.task_id not in evaluator_cache:
-                    evaluator_cache[trial.task_id] = _create_evaluator(task_cfg.problem)
+                    evaluator_cache[trial.task_id] = _create_evaluator(task_cfg)
                 evaluator = evaluator_cache[trial.task_id]
                 result = evaluator.evaluate(trial)
                 output_path = cfg.outbox_dir / _output_filename(trial.task_id, trial.iteration)

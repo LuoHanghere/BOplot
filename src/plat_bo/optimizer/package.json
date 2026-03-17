@@ -1,0 +1,11 @@
+{
+  "name": "plat_bo.optimizer",
+  "version": "0.1.0",
+  "description": "Optimization loop and management module for Plat BO",
+  "dependencies": {
+    "plat_bo.initialization": "0.1.0",
+    "plat_bo.objective": "0.1.0",
+    "plat_bo.surrogate": "0.1.0",
+    "plat_bo.acquisition": "0.1.0"
+  }
+}

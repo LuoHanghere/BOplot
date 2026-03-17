@@ -1,0 +1,8 @@
+{
+  "name": "plat_bo.acquisition",
+  "version": "0.1.0",
+  "description": "Acquisition function module for Plat BO",
+  "dependencies": {
+    "plat_bo.initialization": "0.1.0"
+  }
+}
