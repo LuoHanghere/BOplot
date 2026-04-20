@@ -1,0 +1,13 @@
+[
+  "tests/test_component_config.py::TestComponentConfig::test_incompatible_components_raise",
+  "tests/test_component_config.py::TestComponentConfig::test_resolve_from_components_only",
+  "tests/test_component_config.py::TestComponentConfig::test_resolve_from_strategy",
+  "tests/test_initialization.py::TestInitialization::test_strategy_validation",
+  "tests/test_initialization.py::TestInitialization::test_task_config_io",
+  "tests/test_objective.py::TestObjective::test_branin_value",
+  "tests/test_surrogate.py::TestSurrogate::test_engine_suggestion",
+  "tests/test_surrogate.py::TestSurrogate::test_turbo_skeleton_high_dim",
+  "tests/test_surrogate.py::TestSurrogate::test_turbo_state_adaptation",
+  "tests/test_ui_metrics.py::TestUIMetrics::test_parameter_sobol_proxy",
+  "tests/test_ui_metrics.py::TestUIMetrics::test_pareto_exploration_from_objective_cost"
+]

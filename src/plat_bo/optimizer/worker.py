@@ -29,6 +29,11 @@ def _create_evaluator(task_cfg: TaskConfig) -> Evaluator:
     if task_cfg.problem == "su2_airfoil_2d":
         extra = {"problem_config": task_cfg.problem_config or {}}
         return SubprocessEvaluator(module="plat_bo.objective.su2_airfoil_program", extra_input=extra)
+    
+    # Generic subprocess evaluator using problem_config.module
+    if task_cfg.problem_config and "module" in task_cfg.problem_config:
+        return SubprocessEvaluator(module=task_cfg.problem_config["module"])
+        
     return MockQuadraticEvaluator()
 
 

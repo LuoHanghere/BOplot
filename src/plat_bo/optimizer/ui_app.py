@@ -135,18 +135,23 @@ def _problem_defaults(problem: str) -> dict:
             "initial_random_trials": 8,
             "problem_config": {
                 "solver_mode": "su2",
-                "mesh_level": "low",
-                "enable_medium_review": True,
+                "mesh_level": "medium",
+                "review_mesh_level": "high",
+                "enable_medium_review": False,
                 "objective_drag_floor": 0.005,
                 "medium_review_cd_threshold": 0.005,
-                "iterations": 120,
+                "iterations": 500,
                 "processors": 4,
                 "su2_cfd": "G:\\LHHHHHHH\\program\\SU2-v8.4.0-win64-mpi\\bin",
                 "allow_mock_fallback": False,
-                "timeout_seconds": 1200,
+                "timeout_seconds": 3600,
                 "shape_scale": 0.2,
                 "su2": {
-                    "solver": "EULER",
+                    "solver": "RANS",
+                    "turbulence_model": "SST",
+                    "turbulence_intensity": 0.01,
+                    "turbulence_viscosity_ratio": 10.0,
+                    "cfl_number": 0.1,
                     "mach": 0.5,
                     "aoa_deg": 2.0,
                     "reynolds": 1000000.0,
@@ -159,6 +164,12 @@ def _problem_defaults(problem: str) -> dict:
             "bounds_text": "-5,10;0,15",
             "initial_random_trials": 5,
             "problem_config": {},
+        }
+    if key == "dtlz2_3d":
+        return {
+            "bounds_text": "0,1;0,1;0,1;0,1;0,1",
+            "initial_random_trials": 5,
+            "problem_config": {"module": "Mlu.dtlz2_program"},
         }
     return {
         "bounds_text": "-1,1;-1,1",
@@ -318,9 +329,10 @@ def _compute_pareto_exploration(success: list[dict]) -> dict:
         if isinstance(objective_vector, list) and len(objective_vector) >= 2:
             f1 = _safe_float(objective_vector[0])
             f2 = _safe_float(objective_vector[1])
+            f3 = _safe_float(objective_vector[2]) if len(objective_vector) >= 3 else None
             if f1 is None or f2 is None:
                 continue
-            points.append({"iteration": it, "f1": f1, "f2": f2, "source": "objective_vector"})
+            points.append({"iteration": it, "f1": f1, "f2": f2, "f3": f3, "source": "objective_vector"})
             continue
         objective = _safe_float(item.get("objective"))
         cost = _safe_float(item.get("cost_seconds"))
@@ -333,6 +345,9 @@ def _compute_pareto_exploration(success: list[dict]) -> dict:
     def dominates(a: dict, b: dict) -> bool:
         not_worse = a["f1"] <= b["f1"] and a["f2"] <= b["f2"]
         strictly_better = a["f1"] < b["f1"] or a["f2"] < b["f2"]
+        if a.get("f3") is not None and b.get("f3") is not None:
+            not_worse = not_worse and a["f3"] <= b["f3"]
+            strictly_better = strictly_better or a["f3"] < b["f3"]
         return bool(not_worse and strictly_better)
 
     frontier: list[dict] = []
@@ -378,6 +393,7 @@ PROBLEM_DEFAULTS_JSON = json.dumps(
         "mock_quadratic": _problem_defaults("mock_quadratic"),
         "fluent_airfoil_2d": _problem_defaults("fluent_airfoil_2d"),
         "su2_airfoil_2d": _problem_defaults("su2_airfoil_2d"),
+        "dtlz2_3d": _problem_defaults("dtlz2_3d"),
     },
     ensure_ascii=False,
 )
@@ -420,7 +436,7 @@ HTML = """<!doctype html>
       <div><label>task_id</label><input id="task_id" value="branin-001"/></div>
       <div><label>project_id</label><input id="project_id" value="test1"/></div>
       <div><label>优化问题</label>
-        <select id="problem"><option value="branin">branin</option><option value="mock_quadratic">mock_quadratic</option><option value="fluent_airfoil_2d">fluent_airfoil_2d</option><option value="su2_airfoil_2d">su2_airfoil_2d</option></select>
+        <select id="problem"><option value="branin">branin</option><option value="mock_quadratic">mock_quadratic</option><option value="fluent_airfoil_2d">fluent_airfoil_2d</option><option value="su2_airfoil_2d">su2_airfoil_2d</option><option value="dtlz2_3d">dtlz2_3d</option></select>
       </div>
       <div><label>代理模型</label><select id="surrogate_model">__SURROGATE_OPTIONS__</select></div>
       <div><label>采集函数</label><select id="acquisition_function">__ACQUISITION_OPTIONS__</select></div>
@@ -458,7 +474,7 @@ HTML = """<!doctype html>
     <div class="card"><h3>参数重要性(高级代理)</h3><pre id="importance_adv"></pre></div>
   </div>
   <div class="grid" style="margin-top:14px;">
-    <div class="card"><h3>Pareto 探索(f1-f2)</h3><pre id="pareto"></pre></div>
+    <div class="card"><h3>Pareto 探索(多目标)</h3><pre id="pareto"></pre></div>
     <div class="card"><h3>任务配置摘要</h3><pre id="task_cfg"></pre></div>
     <div class="card"><h3>优化摘要</h3><pre id="summary"></pre></div>
   </div>
@@ -492,6 +508,30 @@ const COMPONENT_KEYS = ["surrogate_model", "acquisition_function", "inner_optimi
 function applyProblemDefaults(forceOverwrite) {
   const problem = document.getElementById("problem").value;
   const defaults = PROBLEM_DEFAULTS[problem];
+  
+  // Enforce MOO constraint
+  if (problem === "dtlz2_3d") {
+    applyComponentConfigToForm({
+      surrogate_model: "multi_objective_gp",
+      acquisition_function: "qehvi",
+      inner_optimizer: "botorch_optimize_acqf",
+      hyperparameter_update: "mll_fit"
+    });
+    enforceComponentConstraints(null);
+  } else {
+    // If we switch back to single objective and it's currently on MOO, reset to single objective default
+    const currentSurrogate = document.getElementById("surrogate_model").value;
+    if (currentSurrogate === "multi_objective_gp") {
+      applyComponentConfigToForm({
+        surrogate_model: "single_task_gp",
+        acquisition_function: "expected_improvement",
+        inner_optimizer: "botorch_optimize_acqf",
+        hyperparameter_update: "mll_fit"
+      });
+      enforceComponentConstraints(null);
+    }
+  }
+  
   if (!defaults) return;
   const boundsEl = document.getElementById("bounds");
   const configEl = document.getElementById("problem_config");

@@ -87,8 +87,9 @@ def _as_output(
     result: dict[str, Any],
     workspace_name: str,
     mesh_level_used: str,
-    low_workspace: str,
-    medium_workspace: str | None,
+    primary_workspace: str,
+    review_workspace: str | None,
+    review_mesh_level: str | None,
     objective_drag_floor: float,
 ) -> dict[str, Any]:
     cl = float(result.get("lift_coefficient"))
@@ -111,8 +112,11 @@ def _as_output(
         "message": "ok",
         "workspace": workspace_name,
         "mesh_level_used": mesh_level_used,
-        "low_workspace": low_workspace,
-        "medium_workspace": medium_workspace,
+        "primary_workspace": primary_workspace,
+        "review_workspace": review_workspace,
+        "review_mesh_level": review_mesh_level,
+        "low_workspace": primary_workspace,
+        "medium_workspace": review_workspace,
     }
     return payload
 
@@ -154,13 +158,17 @@ def run(input_path: Path, output_path: Path) -> None:
     medium_review_cd_threshold = max(objective_drag_floor, float(problem_cfg.get("medium_review_cd_threshold", objective_drag_floor)))
     project_name = _safe_text(problem_cfg.get("project_name"), task_id)
     iter_tag = "{}_iter_{:04d}".format(task_id, max(0, iteration))
-    low_workspace = _safe_text(
-        problem_cfg.get("workspace_low"),
-        str(Path(project_name) / "{}_low".format(iter_tag)),
+    base_mesh_level = _safe_text(problem_cfg.get("mesh_level"), "low").lower()
+    review_mesh_level = _safe_text(problem_cfg.get("review_mesh_level"), "medium").lower()
+    if review_mesh_level == base_mesh_level:
+        review_mesh_level = "high" if base_mesh_level == "medium" else "medium"
+    primary_workspace = _safe_text(
+        problem_cfg.get("workspace_primary"),
+        str(Path(project_name) / "{}_{}".format(iter_tag, base_mesh_level)),
     )
-    medium_workspace = _safe_text(
-        problem_cfg.get("workspace_medium"),
-        str(Path(project_name) / "{}_medium".format(iter_tag)),
+    review_workspace = _safe_text(
+        problem_cfg.get("workspace_review"),
+        str(Path(project_name) / "{}_{}".format(iter_tag, review_mesh_level)),
     )
     trial_input_path = su2_dir / "data" / project_name / "{}_trial_input.json".format(iter_tag)
     _write_json(
@@ -175,34 +183,34 @@ def run(input_path: Path, output_path: Path) -> None:
             "su2": problem_cfg.get("su2", {}),
         },
     )
-    ok_low, low_meta = _run_pipeline(
+    ok_primary, primary_meta = _run_pipeline(
         repo_root=repo_root,
         pipeline=pipeline,
         input_path=trial_input_path,
-        workspace_name=low_workspace,
+        workspace_name=primary_workspace,
         problem_cfg=problem_cfg,
-        mesh_level="low",
+        mesh_level=base_mesh_level,
     )
-    if not ok_low:
+    if not ok_primary:
         _write_json(
             output_path,
             {
                 "objective": float("nan"),
                 "success": False,
-                "message": str(low_meta.get("message", "su2 low-level run failed")),
-                "workspace": low_workspace,
+                "message": str(primary_meta.get("message", "su2 primary-level run failed")),
+                "workspace": primary_workspace,
             },
         )
         return
-    ok_low_result, low_result = _read_result(su2_dir, low_workspace)
-    if not ok_low_result:
+    ok_primary_result, primary_result = _read_result(su2_dir, primary_workspace)
+    if not ok_primary_result:
         _write_json(
             output_path,
             {
                 "objective": float("nan"),
                 "success": False,
-                "message": str(low_result.get("message", "su2 low-level result failed")),
-                "workspace": low_workspace,
+                "message": str(primary_result.get("message", "su2 primary-level result failed")),
+                "workspace": primary_workspace,
             },
         )
         return
@@ -212,10 +220,11 @@ def run(input_path: Path, output_path: Path) -> None:
         _write_json(
             output_path,
             _as_output(
-                low_result,
-                low_workspace,
-                "low",
-                low_workspace,
+                primary_result,
+                primary_workspace,
+                base_mesh_level,
+                primary_workspace,
+                None,
                 None,
                 objective_drag_floor,
             ),
@@ -225,51 +234,52 @@ def run(input_path: Path, output_path: Path) -> None:
     state_path = su2_dir / "data" / project_name / "review_state.json"
     state_data = _read_json(state_path) if state_path.exists() else {}
     best_low = state_data.get("best_low_objective")
-    low_objective = float(low_result.get("objective"))
-    low_cd = float(low_result.get("drag_coefficient"))
-    should_review = best_low is None or low_objective < float(best_low) or low_cd < medium_review_cd_threshold
+    primary_objective = float(primary_result.get("objective"))
+    primary_cd = float(primary_result.get("drag_coefficient"))
+    should_review = best_low is None or primary_objective < float(best_low) or primary_cd < medium_review_cd_threshold
     if should_review:
-        ok_medium, medium_meta = _run_pipeline(
+        ok_review, review_meta = _run_pipeline(
             repo_root=repo_root,
             pipeline=pipeline,
             input_path=trial_input_path,
-            workspace_name=medium_workspace,
+            workspace_name=review_workspace,
             problem_cfg=problem_cfg,
-            mesh_level="medium",
+            mesh_level=review_mesh_level,
         )
-        if not ok_medium:
+        if not ok_review:
             _write_json(
                 output_path,
                 {
                     "objective": float("nan"),
                     "success": False,
-                    "message": str(medium_meta.get("message", "su2 medium-level run failed")),
-                    "workspace": medium_workspace,
+                    "message": str(review_meta.get("message", "su2 review-level run failed")),
+                    "workspace": review_workspace,
                 },
             )
             return
-        ok_medium_result, medium_result = _read_result(su2_dir, medium_workspace)
-        if not ok_medium_result:
+        ok_review_result, review_result = _read_result(su2_dir, review_workspace)
+        if not ok_review_result:
             _write_json(
                 output_path,
                 {
                     "objective": float("nan"),
                     "success": False,
-                    "message": str(medium_result.get("message", "su2 medium-level result failed")),
-                    "workspace": medium_workspace,
+                    "message": str(review_result.get("message", "su2 review-level result failed")),
+                    "workspace": review_workspace,
                 },
             )
             return
-        state_data["best_low_objective"] = low_objective
+        state_data["best_low_objective"] = primary_objective
         _write_json(state_path, state_data)
         _write_json(
             output_path,
             _as_output(
-                medium_result,
-                medium_workspace,
-                "medium",
-                low_workspace,
-                medium_workspace,
+                review_result,
+                review_workspace,
+                review_mesh_level,
+                primary_workspace,
+                review_workspace,
+                review_mesh_level,
                 objective_drag_floor,
             ),
         )
@@ -278,10 +288,11 @@ def run(input_path: Path, output_path: Path) -> None:
     _write_json(
         output_path,
         _as_output(
-            low_result,
-            low_workspace,
-            "low",
-            low_workspace,
+            primary_result,
+            primary_workspace,
+            base_mesh_level,
+            primary_workspace,
+            None,
             None,
             objective_drag_floor,
         ),

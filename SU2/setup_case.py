@@ -53,6 +53,10 @@ def build_case_config(
     turbulent_intensity = _safe_float(cfg.get("turbulence_intensity"), 0.05)
     turb2lam_ratio = _safe_float(cfg.get("turbulence_viscosity_ratio"), 10.0)
     boundary_mode = str(cfg.get("boundary_mode", "inlet_outlet")).strip().lower()
+    viscous = solver.upper() in {"RANS", "NAVIER_STOKES"}
+    cfl_default = 0.5 if viscous else 1.0
+    cfl_number = _safe_float(cfg.get("cfl_number"), cfl_default)
+    cfl_adapt = str(cfg.get("cfl_adapt", "NO")).strip().upper()
     if iterations_override is not None and iterations_override > 0:
         iterations = int(iterations_override)
     gamma = 1.4
@@ -63,7 +67,6 @@ def build_case_config(
     velocity_x = freestream_velocity * math.cos(aoa_rad)
     velocity_y = freestream_velocity * math.sin(aoa_rad)
 
-    viscous = solver.upper() in {"RANS", "NAVIER_STOKES"}
     lines = [
         "SOLVER= {}".format(solver),
         "MATH_PROBLEM= DIRECT",
@@ -90,8 +93,8 @@ def build_case_config(
         "CONV_NUM_METHOD_FLOW= JST",
         "MUSCL_FLOW= NO",
         "NUM_METHOD_GRAD= GREEN_GAUSS",
-        "CFL_NUMBER= 1.0",
-        "CFL_ADAPT= NO",
+        "CFL_NUMBER= {:.8f}".format(cfl_number),
+        "CFL_ADAPT= {}".format(cfl_adapt),
         "ITER= {}".format(iterations),
         "LINEAR_SOLVER= FGMRES",
         "LINEAR_SOLVER_PREC= ILU",

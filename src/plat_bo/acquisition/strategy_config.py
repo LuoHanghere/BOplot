@@ -12,11 +12,13 @@ COMPONENT_KEYS = (
 SUPPORTED_SURROGATE_MODELS = {
     "single_task_gp",
     "turbo_trust_region_skeleton",
+    "multi_objective_gp",
 }
 SUPPORTED_ACQUISITION_FUNCTIONS = {
     "expected_improvement",
     "upper_confidence_bound",
     "local_candidate_ranking",
+    "qehvi",
 }
 SUPPORTED_INNER_OPTIMIZERS = {
     "botorch_optimize_acqf",
@@ -46,6 +48,12 @@ COMPONENT_COMPATIBILITY_MATRIX = [
         "inner_optimizer": "candidate_pool_nearest_distance",
         "hyperparameter_update": "turbo_state_update_reserved",
     },
+    {
+        "surrogate_model": "multi_objective_gp",
+        "acquisition_function": "qehvi",
+        "inner_optimizer": "botorch_optimize_acqf",
+        "hyperparameter_update": "mll_fit",
+    },
 ]
 
 STRATEGY_PRESETS = {
@@ -67,6 +75,12 @@ STRATEGY_PRESETS = {
         "inner_optimizer": "candidate_pool_nearest_distance",
         "hyperparameter_update": "turbo_state_update_reserved",
     },
+    "base_multi_objective_qehvi": {
+        "surrogate_model": "multi_objective_gp",
+        "acquisition_function": "qehvi",
+        "inner_optimizer": "botorch_optimize_acqf",
+        "hyperparameter_update": "mll_fit",
+    },
 }
 SUPPORTED_STRATEGIES = set(STRATEGY_PRESETS.keys())
 
@@ -82,6 +96,10 @@ STRATEGY_COMPONENT_GUIDE = {
     "base_turbo_gp_ei_skeleton": {
         **STRATEGY_PRESETS["base_turbo_gp_ei_skeleton"],
         "notes": "高维入口骨架，后续升级完整 TuRBO 状态机",
+    },
+    "base_multi_objective_qehvi": {
+        **STRATEGY_PRESETS["base_multi_objective_qehvi"],
+        "notes": "多目标 Pareto 前沿探索基线策略",
     },
 }
 

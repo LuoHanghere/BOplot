@@ -93,17 +93,20 @@ class BOEngine:
             params.append(round(lo + (hi - lo) * random.random(), 6))
         return params
 
-    def _extract_train_data(self, state: EngineState) -> Tuple[list[list[float]], list[float]]:
+    def _extract_train_data(self, state: EngineState) -> Tuple[list[list[float]], list[float], list[list[float]]]:
         xs: list[list[float]] = []
         ys: list[float] = []
+        y_vecs: list[list[float]] = []
         for item in state.history:
             if bool(item.get("success")):
                 try:
                     xs.append([float(v) for v in item["parameters"]])
                     ys.append(float(item["objective"]))
+                    if "objective_vector" in item and item["objective_vector"] is not None:
+                        y_vecs.append([float(v) for v in item["objective_vector"]])
                 except Exception:  # noqa: BLE001
                     continue
-        return xs, ys
+        return xs, ys, y_vecs
 
     def _init_turbo_state(self, state: EngineState) -> None:
         if state.turbo_state:
@@ -156,7 +159,7 @@ class BOEngine:
         turbo["last_update_iteration"] = int(output.iteration)
 
     def _suggest_botorch_or_fallback(self, state: EngineState) -> list[float]:
-        x_train, y_train = self._extract_train_data(state)
+        x_train, y_train, y_vec_train = self._extract_train_data(state)
         if len(x_train) < max(3, self.task_config.initial_random_trials):
             return self._sample_uniform()
         try:
@@ -171,6 +174,9 @@ class BOEngine:
                 return suggest_turbo_skeleton(
                     x_train, y_train, self.task_config, trust_region_length=trust_region_length
                 )
-            return suggest_botorch(x_train, y_train, self.task_config, components)
-        except Exception:
+            
+            # Pass y_vec_train to support MOO
+            return suggest_botorch(x_train, y_train, self.task_config, components, y_vec_train=y_vec_train)
+        except Exception as e:
+            print(f"Fallback due to exception: {e}")
             return self._sample_uniform()
